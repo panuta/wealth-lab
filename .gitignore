@@ -5,9 +5,6 @@ notebooks/.ipython
 notebooks/.jupyter
 notebooks/.local
 
-# IDE
-.idea
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
