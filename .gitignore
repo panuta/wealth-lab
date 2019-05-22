@@ -1,3 +1,13 @@
+# Database
+notebooks/.config
+notebooks/.ipynb_checkpoints
+notebooks/.ipython
+notebooks/.jupyter
+notebooks/.local
+
+# IDE
+.idea
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
