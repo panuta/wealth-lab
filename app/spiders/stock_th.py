@@ -1,4 +1,4 @@
-from crawlers.spiders.base import Spider
+# from crawlers.spiders.base import Spider
 
 
 class SETSpider(Spider):
