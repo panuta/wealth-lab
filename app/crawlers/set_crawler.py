@@ -1,57 +1,71 @@
+import requests
 import shutil
 import time
 
-import backtrader as bt
-import pandas as pd
-import requests
-
 from datetime import datetime, timedelta
 from lxml import etree
+from pathlib import Path
 
-from app.common import date_utils, number_utils, storage_utils
+from app.common import date_utils, number_utils, storage_utils, string_utils
 
 
 class SETCrawler(object):
     NVDR_CELLS_PER_ROW = 11
 
+    SYMBOLS_FILE_PATH_TUPLE = ('SET/', 'symbols.txt')
+
+    @classmethod
+    def crawl_symbols(cls):
+        response = requests.get('https://www.set.or.th/dat/eod/listedcompany/static/listedCompanies_th_TH.xls')
+        encoded_content = response.content.decode('iso-8859-11').encode('utf-8')
+        response_tree = etree.HTML(encoded_content)
+
+        symbols = []
+        for symbol_tr in response_tree.xpath('//table[1]/tr[position()>2]'):
+            market = symbol_tr.xpath('td[3]')[0].text.strip()
+            if market == 'SET':
+                symbols.append(symbol_tr.xpath('td[1]')[0].text.strip())
+
+        with open(storage_utils.abs_path(*cls.SYMBOLS_FILE_PATH_TUPLE), 'w') as fd:
+            fd.write('\n'.join(symbols))
+
+    @classmethod
+    def load_symbols(cls, crawl_if_not_exists=False):
+        symbols_filepath = storage_utils.abs_path(*cls.SYMBOLS_FILE_PATH_TUPLE)
+        symbols_file = Path(symbols_filepath)
+        if not symbols_file.is_file():
+            if crawl_if_not_exists:
+                cls.crawl_symbols()
+            else:
+                return None
+
+        with open(symbols_filepath, 'r') as fd:
+            symbols = fd.read().splitlines()
+        return symbols
+
     @classmethod
     def crawl_price(cls, symbols, fromdate, todate=None):
-        assert isinstance(symbols, list), 'symbols must be list of string'
-        assert isinstance(fromdate, datetime), 'fromdate must be datetime'
-        assert todate is None or isinstance(todate, datetime), 'todate must be datetime or None'
-        assert todate is None or fromdate <= todate, 'fromdate must be earlier than todate'
-
+        if not todate:
+            todate = datetime.today()
+        todate = date_utils.strip_time(todate)
         fromdate = date_utils.strip_time(fromdate)
-        todate = date_utils.strip_time(todate) if todate else fromdate
 
+        import backtrader as bt
         for symbol in symbols:
-            print(f'>> {symbol}')
-
-            yahoo_symbol = f'{symbol}.BK'
-
+            yahoo_symbol = f'{string_utils.encode_symbol_for_yahoo_finance(symbol)}.BK'
             data = bt.feeds.YahooFinanceData(dataname=yahoo_symbol, fromdate=fromdate, todate=todate)
             data.start()
 
-            with open(storage_utils.abs_path('SET/StockPrice/', f'{yahoo_symbol}.csv'), 'w') as fd:
+            with open(storage_utils.abs_path('SET/Price/', f'{yahoo_symbol}.csv'), 'w') as fd:
                 data.f.seek(0)
                 shutil.copyfileobj(data.f, fd)
 
     @classmethod
     def crawl_nvdr(cls, fromdate, todate=None):
-        """
-        Crawl NVDR from set.or.th
-
-        :param fromdate: Datetime format
-        :param todate: Datetime format
-        :return: List of List
-        """
-
-        assert isinstance(fromdate, datetime), 'fromdate must be datetime'
-        assert todate is None or isinstance(todate, datetime), 'todate must be datetime or None'
-        assert todate is None or fromdate <= todate, 'fromdate must be earlier than todate'
-
+        if not todate:
+            todate = datetime.today()
+        todate = date_utils.strip_time(todate)
         fromdate = date_utils.strip_time(fromdate)
-        todate = date_utils.strip_time(todate) if todate else fromdate
 
         crawl_date = fromdate
         while crawl_date <= todate:
@@ -77,6 +91,7 @@ class SETCrawler(object):
                 ])
 
             if data:
+                import pandas as pd
                 df = pd.DataFrame.from_records(
                     data, columns=['Symbol', 'Volume Buy', 'Volume Sell', 'Value Buy', 'Value Sell', 'Percentage'])
                 df.to_csv(storage_utils.abs_path(
