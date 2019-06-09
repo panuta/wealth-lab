@@ -54,11 +54,15 @@ class SETCrawler(object):
         for symbol in symbols:
             yahoo_symbol = f'{string_utils.encode_symbol_for_yahoo_finance(symbol)}.BK'
             data = bt.feeds.YahooFinanceData(dataname=yahoo_symbol, fromdate=fromdate, todate=todate)
-            data.start()
 
-            with open(storage_utils.abs_path('SET/Price/', f'{yahoo_symbol}.csv'), 'w') as fd:
-                data.f.seek(0)
-                shutil.copyfileobj(data.f, fd)
+            try:
+                data.start()
+            except FileNotFoundError:
+                pass
+            else:
+                with open(storage_utils.abs_path('SET/Price/', f'{yahoo_symbol}.csv'), 'w') as fd:
+                    data.f.seek(0)
+                    shutil.copyfileobj(data.f, fd)
 
     @classmethod
     def crawl_nvdr(cls, fromdate, todate=None):
@@ -69,8 +73,6 @@ class SETCrawler(object):
 
         crawl_date = fromdate
         while crawl_date <= todate:
-            print(f'>> {crawl_date}')
-
             request_url = 'https://www.set.or.th/set/nvdrbystock.do?format=excel&date={}'.format(
                 crawl_date.strftime('%d/%m/%Y'))
             response = requests.get(request_url)
