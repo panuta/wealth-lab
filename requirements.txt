@@ -1,3 +1,4 @@
-scrapy
+django
+backtrader
 python-dateutil
 pandas
