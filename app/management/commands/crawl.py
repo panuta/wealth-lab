@@ -2,7 +2,7 @@ from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
-from app.crawlers.set_crawler import SETCrawler
+from app.crawlers.thai_stock_crawler import ThaiStockCrawler
 
 
 class Command(BaseCommand):
@@ -12,10 +12,10 @@ class Command(BaseCommand):
         fromdate = datetime(2017, 1, 1)
 
         print('Load symbols')
-        symbols = SETCrawler.load_symbols(crawl_if_not_exists=True)
+        symbols = ThaiStockCrawler.load_symbols(crawl_if_not_exists=True)
 
         print('Crawl price')
-        SETCrawler.crawl_price(symbols=symbols, fromdate=fromdate)
+        ThaiStockCrawler.crawl_price(symbols=symbols, fromdate=fromdate)
 
         print('Crawl NVDR')
-        SETCrawler.crawl_nvdr(fromdate=fromdate)
+        ThaiStockCrawler.crawl_nvdr(fromdate=fromdate)

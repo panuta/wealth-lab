@@ -9,7 +9,7 @@ from pathlib import Path
 from app.common import date_utils, number_utils, storage_utils, string_utils
 
 
-class SETCrawler(object):
+class ThaiStockCrawler(object):
     NVDR_CELLS_PER_ROW = 11
 
     SYMBOLS_FILE_PATH_TUPLE = ('SET/', 'symbols.txt')
