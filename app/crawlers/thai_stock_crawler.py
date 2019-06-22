@@ -1,3 +1,5 @@
+import backtrader as bt
+import pandas as pd
 import requests
 import shutil
 import time
@@ -10,9 +12,17 @@ from app.common import date_utils, number_utils, storage_utils, string_utils
 
 
 class ThaiStockCrawler(object):
-    NVDR_CELLS_PER_ROW = 11
 
-    SYMBOLS_FILE_PATH_TUPLE = ('SET/', 'symbols.txt')
+    # Symbols
+    SYMBOLS_STORAGE_FOLDER = 'SET/'
+    SYMBOLS_STORAGE_FILENAME = 'symbols.txt'
+
+    # Price
+    STOCK_PRICE_FOLDER = 'SET/Price/'
+
+    # NVDR
+    NVDR_STORAGE_FOLDER = 'SET/NVDR/'
+    MERGED_NVDR_STORAGE_FOLDER = 'SET/NVDR/Merged/'
 
     @classmethod
     def crawl_symbols(cls):
@@ -26,12 +36,12 @@ class ThaiStockCrawler(object):
             if market == 'SET':
                 symbols.append(symbol_tr.xpath('td[1]')[0].text.strip())
 
-        with open(storage_utils.abs_path(*cls.SYMBOLS_FILE_PATH_TUPLE), 'w') as fd:
+        with open(storage_utils.abs_path(cls.SYMBOLS_STORAGE_FOLDER, cls.SYMBOLS_STORAGE_FILENAME), 'w') as fd:
             fd.write('\n'.join(symbols))
 
     @classmethod
     def load_symbols(cls, crawl_if_not_exists=False):
-        symbols_filepath = storage_utils.abs_path(*cls.SYMBOLS_FILE_PATH_TUPLE)
+        symbols_filepath = storage_utils.abs_path(cls.SYMBOLS_STORAGE_FOLDER, cls.SYMBOLS_STORAGE_FILENAME)
         symbols_file = Path(symbols_filepath)
         if not symbols_file.is_file():
             if crawl_if_not_exists:
@@ -50,7 +60,6 @@ class ThaiStockCrawler(object):
         todate = date_utils.strip_time(todate)
         fromdate = date_utils.strip_time(fromdate)
 
-        import backtrader as bt
         for symbol in symbols:
             yahoo_symbol = f'{string_utils.encode_symbol_for_yahoo_finance(symbol)}.BK'
             data = bt.feeds.YahooFinanceData(dataname=yahoo_symbol, fromdate=fromdate, todate=todate)
@@ -60,7 +69,7 @@ class ThaiStockCrawler(object):
             except FileNotFoundError:
                 pass
             else:
-                with open(storage_utils.abs_path('SET/Price/', f'{yahoo_symbol}.csv'), 'w') as fd:
+                with open(storage_utils.abs_path(cls.STOCK_PRICE_FOLDER, f'{yahoo_symbol}.csv'), 'w') as fd:
                     data.f.seek(0)
                     shutil.copyfileobj(data.f, fd)
 
@@ -81,8 +90,8 @@ class ThaiStockCrawler(object):
             tds = response_tree.xpath('//table[2]/tr[position()>2]/td')
 
             data = []
-            for x in range(0, len(tds), cls.NVDR_CELLS_PER_ROW):
-                row = tds[x:x+cls.NVDR_CELLS_PER_ROW]
+            for x in range(0, len(tds), 11):  # 11 => cells per row
+                row = tds[x:x+11]
                 data.append([
                     row[0].text,  # Symbol
                     number_utils.clean_num_string(row[1].text),  # Volume Buy
@@ -93,11 +102,28 @@ class ThaiStockCrawler(object):
                 ])
 
             if data:
-                import pandas as pd
                 df = pd.DataFrame.from_records(
                     data, columns=['Symbol', 'Volume Buy', 'Volume Sell', 'Value Buy', 'Value Sell', 'Percentage'])
                 df.to_csv(storage_utils.abs_path(
-                    'SET/NVDR/', 'NVDR-{}.csv'.format(crawl_date.strftime('%Y-%m-%d'))), index=False)
+                    cls.NVDR_STORAGE_FOLDER, 'NVDR-{}.csv'.format(crawl_date.strftime('%Y-%m-%d'))), index=False)
 
             crawl_date = crawl_date + timedelta(days=1)
             time.sleep(2)
+
+    @classmethod
+    def merge_nvdr(cls):
+        data_frames = []
+        for nvdr_filename in storage_utils.list_files(storage_utils.abs_path(cls.NVDR_STORAGE_FOLDER))[:2]:
+            nvdr_date = datetime.strptime(nvdr_filename.partition('.')[0].partition('-')[2], '%Y-%m-%d')
+            data_frames.append(pd.read_csv(storage_utils.abs_path(cls.NVDR_STORAGE_FOLDER, nvdr_filename)).assign(Date=lambda x: nvdr_date))
+
+        combined_df = pd.concat(data_frames, sort=False)
+        combined_df.set_index(['Symbol', 'Date'], inplace=True)
+
+        filtered_df = combined_df.filter(axis='Symbol', items=['CPALL'])
+
+        # storage_utils.abs_path(cls.MERGED_NVDR_STORAGE_FOLDER, nvdr_filename)
+
+        print(combined_df)
+
+        pass
