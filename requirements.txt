@@ -2,3 +2,5 @@ django
 backtrader
 python-dateutil
 pandas
+requests
+lxml
