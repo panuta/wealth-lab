@@ -113,17 +113,14 @@ class ThaiStockCrawler(object):
     @classmethod
     def merge_nvdr(cls):
         data_frames = []
-        for nvdr_filename in storage_utils.list_files(storage_utils.abs_path(cls.NVDR_STORAGE_FOLDER))[:2]:
+        for nvdr_filename in storage_utils.list_files(storage_utils.abs_path(cls.NVDR_STORAGE_FOLDER)):
             nvdr_date = datetime.strptime(nvdr_filename.partition('.')[0].partition('-')[2], '%Y-%m-%d')
             data_frames.append(pd.read_csv(storage_utils.abs_path(cls.NVDR_STORAGE_FOLDER, nvdr_filename)).assign(Date=lambda x: nvdr_date))
 
         combined_df = pd.concat(data_frames, sort=False)
-        combined_df.set_index(['Symbol', 'Date'], inplace=True)
 
-        filtered_df = combined_df.filter(axis='Symbol', items=['CPALL'])
+        symbols = cls.load_symbols()
 
-        # storage_utils.abs_path(cls.MERGED_NVDR_STORAGE_FOLDER, nvdr_filename)
-
-        print(combined_df)
-
-        pass
+        for symbol in symbols:
+            new_df = combined_df[combined_df['Symbol'] == symbol].sort_values(by=['Date'])
+            new_df.to_csv(storage_utils.abs_path('{}Merged/'.format(cls.NVDR_STORAGE_FOLDER), '{}.csv'.format(symbol)), index=False)
